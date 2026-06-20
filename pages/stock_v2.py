@@ -1,3 +1,4 @@
+
 """
 AI 주식 예측 프로그램 (Streamlit)
 ====================================
@@ -454,8 +455,7 @@ with tab_detail:
 
         # 차트 (두 모델 예측선 함께 표시)
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                            row_heights=[0.7, 0.3], vertical_spacing=0.05,
-                            subplot_titles=("주가 & 예측 (모델 비교)", "거래량"))
+                            row_heights=[0.7, 0.3], vertical_spacing=0.08)
         fig.add_trace(go.Scatter(x=df["Date"], y=df["Close"], name="실제 종가",
                                  line=dict(color="#1f77b4", width=1.5)), row=1, col=1)
         fig.add_trace(go.Scatter(x=df["Date"], y=df["MA20"], name="MA20",
@@ -482,8 +482,13 @@ with tab_detail:
 
         fig.add_trace(go.Bar(x=df["Date"], y=df["Volume"], name="거래량",
                              marker_color="rgba(100,100,100,0.4)"), row=2, col=1)
-        fig.update_layout(height=650, hovermode="x unified",
-                          legend=dict(orientation="h", y=1.08))
+        fig.update_yaxes(title_text="주가", row=1, col=1)
+        fig.update_yaxes(title_text="거래량", row=2, col=1)
+        fig.update_layout(
+            height=680, hovermode="x unified",
+            margin=dict(t=70, l=10, r=10, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         with st.expander("📋 예측 데이터 비교"):
