@@ -43,14 +43,18 @@ with tab1:
             start_date = end_date - timedelta(days=past_years * 365)
             
             try:
+                # 데이터를 명확하게 인덱스 1차원 구조로 flatten 처리하여 호출
                 stock_data = yf.download(ticker, start=start_date, end=end_date)
                 
-                if not stock_data.empty and 'Close' in stock_data.columns:
+                if not stock_data.empty:
+                    # [핵심 수정] MultiIndex 컬럼 제거 및 단일 열 변환
+                    if isinstance(stock_data.columns, pd.MultiIndex):
+                        stock_data.columns = stock_data.columns.get_level_values(0)
+                    
                     df = stock_data[['Close']].copy()
-                    if isinstance(df.columns, pd.MultiIndex): 
-                        df.columns = df.columns.droplevel(1)
                     df = df.reset_index()
                     df.columns = ['Date', 'Close']
+                    df['Close'] = df['Close'].astype(float)
                     
                     # AI 연산 (선형 회귀)
                     df['Timestamp'] = df['Date'].map(datetime.toordinal)
@@ -75,7 +79,7 @@ with tab1:
                 st.error(f"데이터를 가져오는 중 오류가 발생했습니다: {e}")
 
 # ====================================================================
-# [TAB 2] 국장(KOSPI) vs 미장(S&P 500) AI 트렌드 비교 (안전성 대폭 강화)
+# [TAB 2] 국장(KOSPI) vs 미장(S&P 500) AI 트렌드 비교
 # ====================================================================
 with tab2:
     st.subheader("⚔️ 한국 KOSPI vs 미국 S&P 500 상승률 및 미래 추세 비교")
@@ -88,23 +92,21 @@ with tab2:
         today = datetime.today()
         
         try:
-            # 안전하게 데이터를 받아오기 위해 지수 데이터 수집
             kospi_data = yf.download("^KS11", start=this_year_start, end=today)
             sp500_data = yf.download("^GSPC", start=this_year_start, end=today)
             
-            # 두 데이터가 모두 성공적으로 로드되었는지 체크
             if not kospi_data.empty and not sp500_data.empty:
                 
-                # 데이터 전처리 함수 (다중 인덱스 완벽 분리)
+                # 데이터 전처리 함수 ([핵심 수정] MultiIndex 컬럼 레벨 평탄화 추가)
                 def clean_index_data(data):
+                    if isinstance(data.columns, pd.MultiIndex):
+                        data.columns = data.columns.get_level_values(0)
+                        
                     df = data[['Close']].copy()
-                    if isinstance(df.columns, pd.MultiIndex): 
-                        df.columns = df.columns.droplevel(1)
                     df = df.reset_index()
                     df.columns = ['Date', 'Price']
                     df['Price'] = df['Price'].astype(float)
                     
-                    # 기준 가격(올해 첫 거래일) 설정 후 수익률 계산
                     base_price = df['Price'].iloc[0]
                     df['Return'] = ((df['Price'] - base_price) / base_price) * 100
                     return df
@@ -124,7 +126,6 @@ with tab2:
                     f_preds = model.predict(f_X)
                     return model.coef_[0], pd.DataFrame({'Date': f_dates, 'Predicted_Return': f_preds})
 
-                # 실제 예측 연산 수행
                 k_slope, k_future = train_and_predict(kospi_df, compare_days)
                 s_slope, s_future = train_and_predict(sp500_df, compare_days)
                 
@@ -142,30 +143,6 @@ with tab2:
                 # 2. 분석 멘트 판정
                 st.markdown("### 🏆 AI의 글로벌 트렌드 분석 판정")
                 if k_slope > s_slope:
-                    st.success(f"현재 머신러닝 학습 결과, **한국 시장(KOSPI)**의 상승 추세선 기울기({k_slope:.3f})가 미국 시장({s_slope:.3f})보다 가파릅니다. 최근 국내 주식의 단기 상승 탄력성이 상대적으로 더 우세한 것으로 해석됩니다.")
+                    st.success(f"현재 머신러닝 학습 결과, **한국 시장(KOSPI)**의 상승 추세선 기울기({k_slope:.3f})가 미국 시장({s_slope:.3f})보다 가파릅니다.")
                 else:
-                    st.info(f"현재 머신러닝 학습 결과, **미국 시장(S&P 500)**의 상승 추세선 기울기({s_slope:.3f})가 한국 시장({k_slope:.3f})보다 가파릅니다. 미국 기술주 중심의 장기 우상향 모멘텀이 상대적으로 견고한 것으로 해석됩니다.")
-                    
-                # 3. Plotly 종합 차트 시각화
-                fig_compare = go.Figure()
-                
-                # KOSPI 실적 및 AI 예측선
-                fig_compare.add_trace(go.Scatter(x=kospi_df['Date'], y=kospi_df['Return'], mode='lines', name='KOSPI 실적(%)', line=dict(color='#E53E3E', width=2)))
-                fig_compare.add_trace(go.Scatter(x=k_future['Date'], y=k_future['Predicted_Return'], mode='lines', name='KOSPI AI 전망', line=dict(color='#E53E3E', width=2, dash='dot')))
-                
-                # S&P 500 실적 및 AI 예측선
-                fig_compare.add_trace(go.Scatter(x=sp500_df['Date'], y=sp500_df['Return'], mode='lines', name='S&P 500 실적(%)', line=dict(color='#3182CE', width=2)))
-                fig_compare.add_trace(go.Scatter(x=s_future['Date'], y=s_future['Predicted_Return'], mode='lines', name='S&P 500 AI 전망', line=dict(color='#3182CE', width=2, dash='dot')))
-                
-                fig_compare.update_layout(
-                    title="KOSPI vs S&P 500 올해 수익률 추이 및 AI 선형 트렌드 비교",
-                    xaxis_title="날짜", yaxis_title="누적 수익률 (%)",
-                    hovermode="x unified",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-                st.plotly_chart(fig_compare, use_container_width=True)
-            else:
-                st.error("야후 파이낸스 서버로부터 지수 데이터를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.")
-        except Exception as err:
-            st.error(f"데이터 처리 중 일시적인 오류가 발생했습니다: {err}")
-            st.info("💡 팁: 학교 네트워크 보안망(방화벽)에서 야후 파이낸스 주가 수집 API를 차단하는 경우일 수 있습니다. 이 경우 테더링(핫스팟)을 이용하면 정상 작동합니다.")
+                    st.info(f"현재 머신러닝 학습 결과, **미국 시장(S&P 500)**의 상승 추세선
