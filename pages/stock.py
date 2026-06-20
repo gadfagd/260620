@@ -170,8 +170,33 @@ st.set_page_config(page_title="AI 주식 예측", page_icon="📈", layout="wide
 st.title("📈 AI 주식 예측 프로그램")
 st.caption("야후 파이낸스 데이터로 국내·해외 주식의 미래 흐름을 예측합니다.")
 
+# 탭 라벨 폰트 키우기
+st.markdown(
+    """
+    <style>
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+    .stTabs [data-baseweb="tab"] { padding: 12px 20px; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 with st.sidebar:
-    st.header("⚙️ 설정")
+    st.header("📊 종목 상세 분석 설정")
+    market = st.radio("시장", ["국내 주식", "해외 주식"], horizontal=True)
+    stock_dict = KR_STOCKS if market == "국내 주식" else US_STOCKS
+    detail_currency = "원" if market == "국내 주식" else "$"
+    stock_name = st.selectbox("종목", list(stock_dict.keys()))
+    ticker = stock_dict[stock_name]
+    if st.checkbox("티커 직접 입력"):
+        ticker = st.text_input("야후 파이낸스 티커", value=ticker,
+                               help="예) 005930.KS, 247540.KQ, AAPL").strip()
+
+    st.divider()
+    st.subheader("⚙️ 설정")
 
     learn_options = [6, 12, 24, 36, 48, 60]
     learn_months = st.select_slider(
@@ -192,17 +217,6 @@ with st.sidebar:
     if PROPHET_AVAILABLE:
         model_options.insert(0, "Prophet (추세+계절성)")
     model_choice = st.radio("예측 모델 (상세 분석 탭)", model_options)
-
-    st.divider()
-    st.subheader("종목 상세 분석 설정")
-    market = st.radio("시장", ["국내 주식", "해외 주식"], horizontal=True)
-    stock_dict = KR_STOCKS if market == "국내 주식" else US_STOCKS
-    detail_currency = "원" if market == "국내 주식" else "$"
-    stock_name = st.selectbox("종목", list(stock_dict.keys()))
-    ticker = stock_dict[stock_name]
-    if st.checkbox("티커 직접 입력"):
-        ticker = st.text_input("야후 파이낸스 티커", value=ticker,
-                               help="예) 005930.KS, 247540.KQ, AAPL").strip()
 
 pred_bdays = int(pred_months * BDAYS_PER_MONTH)
 pred_cdays = int(pred_months * CDAYS_PER_MONTH)
@@ -326,10 +340,30 @@ with tab_detail:
 
         label = f"{pred_months}개월" if pred_months < 12 else "1년"
         st.subheader(f"🎯 {label} 후 예측")
-        p1, p2, p3 = st.columns(3)
-        p1.metric("예측가", f"{pred_price:,.2f} {detail_currency}", f"{pred_change_pct:+.2f}%")
-        p2.metric("예측 하한", f"{float(future_part['yhat_lower'].iloc[-1]):,.2f} {detail_currency}")
-        p3.metric("예측 상한", f"{float(future_part['yhat_upper'].iloc[-1]):,.2f} {detail_currency}")
+
+        lower = float(future_part["yhat_lower"].iloc[-1])
+        upper = float(future_part["yhat_upper"].iloc[-1])
+        chg_color = "#2E9E6B" if pred_change_pct >= 0 else "#E24B4A"
+        st.markdown(
+            f"""
+            <div style="display:flex; gap:2.5rem; flex-wrap:wrap; margin:0.2rem 0 0.6rem;">
+              <div>
+                <div style="font-size:0.85rem; color:gray;">예측가</div>
+                <div style="font-size:1.5rem; font-weight:600;">{pred_price:,.2f} {detail_currency}</div>
+                <div style="font-size:0.9rem; color:{chg_color};">{pred_change_pct:+.2f}%</div>
+              </div>
+              <div>
+                <div style="font-size:0.85rem; color:gray;">예측 하한</div>
+                <div style="font-size:1.5rem; font-weight:600;">{lower:,.2f} {detail_currency}</div>
+              </div>
+              <div>
+                <div style="font-size:0.85rem; color:gray;">예측 상한</div>
+                <div style="font-size:1.5rem; font-weight:600;">{upper:,.2f} {detail_currency}</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         trend = "📈 상승" if pred_change_pct > 1 else ("📉 하락" if pred_change_pct < -1 else "➡️ 보합")
         st.markdown(f"### 종합 전망: **{trend}** (예측 변동률 {pred_change_pct:+.2f}%)")
@@ -364,3 +398,4 @@ with tab_detail:
                          use_container_width=True, hide_index=True)
     else:
         st.markdown("👈 왼쪽 사이드바에서 종목을 고르고 **예측 실행** 버튼을 눌러주세요.")
+  
