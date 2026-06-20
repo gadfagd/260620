@@ -485,4 +485,3 @@ with tab_detail:
                          use_container_width=True, hide_index=True)
     else:
         st.markdown("👈 왼쪽 사이드바에서 종목을 고르고 **예측 실행** 버튼을 눌러주세요.")
-  
