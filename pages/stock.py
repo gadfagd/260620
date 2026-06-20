@@ -27,6 +27,9 @@ try:
 except ImportError:
     PROPHET_AVAILABLE = False
 
+import importlib.util
+TF_AVAILABLE = importlib.util.find_spec("tensorflow") is not None
+
 
 # ──────────────────────────────────────────────────────────────
 # 종목 사전 (이름 → 야후 파이낸스 티커)
@@ -62,6 +65,7 @@ US_STOCKS = {
     "AMD (AMD)": "AMD",
     "팔란티어 (PLTR)": "PLTR",
     "브로드컴 (AVGO)": "AVGO",
+    "로켓랩 (RKLB)": "RKLB",
     "블룸에너지 (BE)": "BE",
     "스페이스X (SPCX)": "SPCX",
     "S&P500 ETF (SPY)": "SPY",
@@ -155,6 +159,70 @@ def predict_linear(df: pd.DataFrame, periods_bdays: int) -> pd.DataFrame:
     return pd.concat([hist, fut], ignore_index=True)
 
 
+def predict_lstm(df: pd.DataFrame, periods_bdays: int,
+                 lookback: int = 30, epochs: int = 25):
+    """LSTM(딥러닝) 시계열 예측. 데이터 부족 시 None 반환."""
+    if not TF_AVAILABLE:
+        return None
+
+    import os
+    os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+    import tensorflow as tf
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense
+
+    d = df[["Date", "Close"]].dropna().reset_index(drop=True)
+    close = d["Close"].values.astype("float32")
+    if len(close) < lookback + 40:        # 학습에 충분한 길이 필요
+        return None
+
+    tf.random.set_seed(42)
+    np.random.seed(42)
+
+    cmin, cmax = float(close.min()), float(close.max())
+    rng = (cmax - cmin) or 1.0
+    scaled = (close - cmin) / rng         # 0~1 정규화
+
+    # 시퀀스(과거 lookback일 → 다음날) 구성
+    X, y = [], []
+    for i in range(lookback, len(scaled)):
+        X.append(scaled[i - lookback:i])
+        y.append(scaled[i])
+    X = np.array(X, dtype="float32").reshape(-1, lookback, 1)
+    y = np.array(y, dtype="float32")
+
+    model = Sequential()
+    model.add(LSTM(40, input_shape=(lookback, 1)))
+    model.add(Dense(1))
+    model.compile(optimizer="adam", loss="mse")
+    model.fit(X, y, epochs=epochs, batch_size=32, verbose=0)
+
+    # 학습 잔차 표준편차로 신뢰구간 추정(가격 단위)
+    pred_train = model.predict(X, verbose=0).flatten()
+    std = float(((y - pred_train) * rng).std())
+
+    # 마지막 구간을 기반으로 미래를 한 칸씩 예측(슬라이딩)
+    window = scaled[-lookback:].tolist()
+    preds = []
+    for _ in range(periods_bdays):
+        x = np.array(window[-lookback:], dtype="float32").reshape(1, lookback, 1)
+        p = float(model(x, training=False).numpy().flatten()[0])
+        preds.append(p)
+        window.append(p)
+    preds = np.array(preds) * rng + cmin
+
+    last_date = d["Date"].iloc[-1]
+    future_dates = pd.bdate_range(last_date + timedelta(days=1), periods=periods_bdays)
+    steps = np.arange(1, periods_bdays + 1)
+    band = 1.96 * std * np.sqrt(steps)    # 기간이 길수록 불확실성 확대
+
+    hist = pd.DataFrame({"ds": d["Date"], "yhat": d["Close"],
+                         "yhat_lower": d["Close"], "yhat_upper": d["Close"]})
+    fut = pd.DataFrame({"ds": future_dates, "yhat": preds,
+                        "yhat_lower": preds - band, "yhat_upper": preds + band})
+    return pd.concat([hist, fut], ignore_index=True)
+
+
 def quick_forecast_pct(df: pd.DataFrame, horizon_bdays: int):
     """랭킹용 빠른 추세 예측: (예측 상승률%, 현재가) 반환."""
     d = df["Close"].dropna().values
@@ -224,6 +292,8 @@ with st.sidebar:
     model_options = ["선형회귀 (간단·빠름)"]
     if PROPHET_AVAILABLE:
         model_options.insert(0, "Prophet (추세+계절성)")
+    if TF_AVAILABLE:
+        model_options.append("LSTM (딥러닝)")
     model_choice = st.radio("예측 모델 (상세 분석 탭)", model_options)
 
 pred_bdays = int(pred_months * BDAYS_PER_MONTH)
@@ -339,6 +409,11 @@ with tab_detail:
         with st.spinner("예측 모델을 학습하는 중..."):
             if model_choice.startswith("Prophet"):
                 forecast = predict_prophet(df, pred_cdays)
+            elif model_choice.startswith("LSTM"):
+                forecast = predict_lstm(df, pred_bdays)
+                if forecast is None:
+                    st.warning("데이터가 부족해 LSTM 대신 선형회귀로 예측합니다. (학습 기간을 늘려보세요)")
+                    forecast = predict_linear(df, pred_bdays)
             else:
                 forecast = predict_linear(df, pred_bdays)
 
