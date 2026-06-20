@@ -1,4 +1,3 @@
-
 """
 AI 주식 예측 프로그램 (Streamlit)
 ====================================
@@ -68,7 +67,6 @@ US_STOCKS = {
     "브로드컴 (AVGO)": "AVGO",
     "로켓랩 (RKLB)": "RKLB",
     "블룸에너지 (BE)": "BE",
-    "스페이스X (SPCX)": "SPCX",
     "S&P500 ETF (SPY)": "SPY",
     "나스닥100 ETF (QQQ)": "QQQ",
 }
@@ -355,7 +353,13 @@ with tab_rank:
         f"학습 {fmt_learn(learn_r)} 데이터로 향후 {fmt_pred(pred_r)} 상승률을 추세 외삽으로 추정해 정렬합니다. "
         "(여러 종목을 빠르게 비교하기 위한 추세 스크리닝)"
     )
-    if st.button("📊 상승 예측 실행", type="primary", use_container_width=True, key="rank_run"):
+    
+    # ─── [수정 부분] 버튼 크기 축소 및 가운데 정렬 ───
+    _, btn_col, _ = st.columns([1.5, 1, 1.5]) 
+    with btn_col:
+        execute_click = st.button("📊 상승 예측 실행", type="primary", use_container_width=True, key="rank_run")
+        
+    if execute_click:
         col_kr, col_us = st.columns(2)
         with col_kr:
             st.markdown("### 🇰🇷 국내 주식")
@@ -368,7 +372,7 @@ with tab_rank:
                 us = run_ranking(US_STOCKS, pred_bdays_r, learn_r)
             render_ranking(us, "$")
     else:
-        st.markdown("👆 **상승 예측 실행** 버튼을 누르면 국내·미국 주요 종목을 한 번에 분석합니다.")
+        st.markdown("<p style='text-align: center; color: gray;'>👆 <b>상승 예측 실행</b> 버튼을 누르면 국내·미국 주요 종목을 한 번에 분석합니다.</p>", unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────
