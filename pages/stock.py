@@ -59,6 +59,11 @@ US_STOCKS = {
     "테슬라 (TSLA)": "TSLA",
     "메타 (META)": "META",
     "넷플릭스 (NFLX)": "NFLX",
+    "AMD (AMD)": "AMD",
+    "팔란티어 (PLTR)": "PLTR",
+    "브로드컴 (AVGO)": "AVGO",
+    "블룸에너지 (BE)": "BE",
+    "스페이스X (SPCX)": "SPCX",
     "S&P500 ETF (SPY)": "SPY",
     "나스닥100 ETF (QQQ)": "QQQ",
 }
@@ -170,15 +175,18 @@ st.set_page_config(page_title="AI 주식 예측", page_icon="📈", layout="wide
 st.title("📈 AI 주식 예측 프로그램")
 st.caption("야후 파이낸스 데이터로 국내·해외 주식의 미래 흐름을 예측합니다.")
 
-# 탭 라벨 폰트 키우기
+# 탭 라벨 / 지표 폰트 크기 조정
 st.markdown(
     """
     <style>
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 1.6rem;
-        font-weight: 700;
+        font-size: 1.1rem;
+        font-weight: 600;
     }
-    .stTabs [data-baseweb="tab"] { padding: 12px 20px; }
+    .stTabs [data-baseweb="tab"] { padding: 8px 16px; }
+    [data-testid="stMetricValue"] { font-size: 1.3rem; }
+    [data-testid="stMetricLabel"] p { font-size: 0.8rem; }
+    [data-testid="stMetricDelta"] { font-size: 0.8rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -348,17 +356,17 @@ with tab_detail:
             f"""
             <div style="display:flex; gap:2.5rem; flex-wrap:wrap; margin:0.2rem 0 0.6rem;">
               <div>
-                <div style="font-size:0.85rem; color:gray;">예측가</div>
-                <div style="font-size:1.5rem; font-weight:600;">{pred_price:,.2f} {detail_currency}</div>
-                <div style="font-size:0.9rem; color:{chg_color};">{pred_change_pct:+.2f}%</div>
+                <div style="font-size:0.8rem; color:gray;">예측가</div>
+                <div style="font-size:1.15rem; font-weight:600;">{pred_price:,.2f} {detail_currency}</div>
+                <div style="font-size:0.85rem; color:{chg_color};">{pred_change_pct:+.2f}%</div>
               </div>
               <div>
-                <div style="font-size:0.85rem; color:gray;">예측 하한</div>
-                <div style="font-size:1.5rem; font-weight:600;">{lower:,.2f} {detail_currency}</div>
+                <div style="font-size:0.8rem; color:gray;">예측 하한</div>
+                <div style="font-size:1.15rem; font-weight:600;">{lower:,.2f} {detail_currency}</div>
               </div>
               <div>
-                <div style="font-size:0.85rem; color:gray;">예측 상한</div>
-                <div style="font-size:1.5rem; font-weight:600;">{upper:,.2f} {detail_currency}</div>
+                <div style="font-size:0.8rem; color:gray;">예측 상한</div>
+                <div style="font-size:1.15rem; font-weight:600;">{upper:,.2f} {detail_currency}</div>
               </div>
             </div>
             """,
@@ -366,7 +374,11 @@ with tab_detail:
         )
 
         trend = "📈 상승" if pred_change_pct > 1 else ("📉 하락" if pred_change_pct < -1 else "➡️ 보합")
-        st.markdown(f"### 종합 전망: **{trend}** (예측 변동률 {pred_change_pct:+.2f}%)")
+        st.markdown(
+            f"<div style='font-size:1.05rem; font-weight:600; margin:0.2rem 0 0.6rem;'>"
+            f"종합 전망: {trend} (예측 변동률 {pred_change_pct:+.2f}%)</div>",
+            unsafe_allow_html=True,
+        )
 
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                             row_heights=[0.7, 0.3], vertical_spacing=0.05,
