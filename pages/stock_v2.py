@@ -47,87 +47,7 @@ KR_STOCKS = {
     "에코프로": "086520.KQ",
     "알테오젠": "196170.KQ",
 }
-"""
-ticker_search.py
-────────────────
-야후 파이낸스 티커 검색 기능만 추출한 컴포넌트
-기존 stock_v2 앱의 티커 입력 부분에 붙여넣어 사용하세요.
-"""
 
-import yfinance as yf
-import streamlit as st
-
-
-def ticker_search_ui(market: str = "KR") -> str | None:
-    """
-    종목명으로 야후 파이낸스 티커를 검색합니다.
-
-    Parameters
-    ----------
-    market : "KR" (국내 .KS/.KQ) 또는 "US" (해외)
-
-    Returns
-    -------
-    ticker : 선택된 티커 문자열, 미선택 시 None
-    """
-    st.markdown("#### 🔍 종목 검색")
-    st.caption("종목명 또는 코드를 입력하세요. (예: 삼성전자, AAPL, 005930)")
-
-    query = st.text_input(
-        "종목 검색",
-        placeholder="종목명 또는 코드 입력…",
-        label_visibility="collapsed",
-    )
-
-    if not query.strip():
-        return st.session_state.get("searched_ticker")
-
-    # 검색 실행
-    with st.spinner("검색 중…"):
-        try:
-            quotes = yf.Search(query, max_results=8).quotes
-        except Exception:
-            st.error("검색 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.")
-            return st.session_state.get("searched_ticker")
-
-    # 시장 필터 + EQUITY/ETF만
-    results = []
-    for q in quotes:
-        ticker = q.get("symbol", "")
-        name   = q.get("shortname") or q.get("longname") or ticker
-        exch   = q.get("exchDisp") or q.get("exchange") or ""
-        qtype  = q.get("quoteType", "")
-
-        if qtype not in ("EQUITY", "ETF"):
-            continue
-        if market == "KR" and not (ticker.endswith(".KS") or ticker.endswith(".KQ")):
-            continue
-        if market == "US" and (ticker.endswith(".KS") or ticker.endswith(".KQ")):
-            continue
-
-        results.append({"name": name, "ticker": ticker, "exchange": exch})
-
-    # 결과 표시
-    if not results:
-        st.warning("검색 결과가 없습니다. 다른 키워드로 시도해 보세요.")
-        return st.session_state.get("searched_ticker")
-
-    st.caption(f"{len(results)}개 종목이 검색되었습니다. 선택하세요.")
-    for r in results:
-        label = f"{r['name']}  `{r['ticker']}`  _{r['exchange']}_"
-        if st.button(label, key=f"res_{r['ticker']}", use_container_width=True):
-            st.session_state["searched_ticker"]      = r["ticker"]
-            st.session_state["searched_ticker_name"] = r["name"]
-
-    # 선택 결과 반환
-    if "searched_ticker" in st.session_state:
-        name   = st.session_state.get("searched_ticker_name", "")
-        ticker = st.session_state["searched_ticker"]
-        st.success(f"✅ 선택됨: **{name}** `{ticker}`")
-        return ticker
-
-    return None
-    
 US_STOCKS = {
     "애플 (AAPL)": "AAPL",
     "마이크로소프트 (MSFT)": "MSFT",
@@ -146,8 +66,8 @@ US_STOCKS = {
     "나스닥100 ETF (QQQ)": "QQQ",
 }
 
-BDAYS_PER_MONTH = 21       
-CDAYS_PER_MONTH = 30.4     
+BDAYS_PER_MONTH = 21
+CDAYS_PER_MONTH = 30.4
 
 
 # ──────────────────────────────────────────────────────────────
@@ -192,7 +112,7 @@ def predict_prophet(df: pd.DataFrame, periods_days: int) -> pd.DataFrame:
         daily_seasonality=False,
         weekly_seasonality=True,
         yearly_seasonality=True,
-        changepoint_range=0.9,          
+        changepoint_range=0.9,
         changepoint_prior_scale=0.1,
     )
     model.fit(pdf)
@@ -213,7 +133,7 @@ def predict_linear(df: pd.DataFrame, periods_bdays: int) -> pd.DataFrame:
     last_close = d["Close"].iloc[-1]
     future_dates = pd.bdate_range(last_date + timedelta(days=1), periods=periods_bdays)
     steps = np.arange(1, periods_bdays + 1)
-    yhat_future = last_close + slope * steps   
+    yhat_future = last_close + slope * steps
 
     hist = pd.DataFrame({
         "ds": d["Date"], "yhat": d["Close"],
@@ -239,7 +159,7 @@ def predict_lstm(df: pd.DataFrame, periods_bdays: int, lookback: int = 30, epoch
 
     d = df[["Date", "Close"]].dropna().reset_index(drop=True)
     close = d["Close"].values.astype("float32")
-    if len(close) < lookback + 40:        
+    if len(close) < lookback + 40:
         return None
 
     tf.random.set_seed(42)
@@ -247,7 +167,7 @@ def predict_lstm(df: pd.DataFrame, periods_bdays: int, lookback: int = 30, epoch
 
     cmin, cmax = float(close.min()), float(close.max())
     rng = (cmax - cmin) or 1.0
-    scaled = (close - cmin) / rng         
+    scaled = (close - cmin) / rng
 
     X, y = [], []
     for i in range(lookback, len(scaled)):
@@ -277,7 +197,7 @@ def predict_lstm(df: pd.DataFrame, periods_bdays: int, lookback: int = 30, epoch
     last_date = d["Date"].iloc[-1]
     future_dates = pd.bdate_range(last_date + timedelta(days=1), periods=periods_bdays)
     steps = np.arange(1, periods_bdays + 1)
-    band = 1.96 * std * np.sqrt(steps)    
+    band = 1.96 * std * np.sqrt(steps)
 
     hist = pd.DataFrame({"ds": d["Date"], "yhat": d["Close"],
                          "yhat_lower": d["Close"], "yhat_upper": d["Close"]})
@@ -293,7 +213,7 @@ def quick_forecast_pct(df: pd.DataFrame, horizon_bdays: int):
     t = np.arange(len(d))
     slope, _ = np.polyfit(t, d, 1)
     last = float(d[-1])
-    pred = last + slope * horizon_bdays   
+    pred = last + slope * horizon_bdays
     return (pred - last) / last * 100, last
 
 
@@ -341,6 +261,42 @@ with st.sidebar:
     if st.checkbox("티커 직접 입력"):
         ticker = st.text_input("야후 파이낸스 티커", value=ticker).strip()
 
+    # ── 🔍 종목 검색 (추가된 부분) ──────────────
+    st.divider()
+    st.markdown("#### 🔍 종목 검색")
+    st.caption("목록에 없는 종목을 이름으로 검색하세요.")
+    query = st.text_input(
+        "종목명 또는 코드",
+        placeholder="예: 카카오뱅크, PLTR, 032640",
+        label_visibility="collapsed",
+    )
+    if query.strip():
+        mkt_filter = "KR" if market == "국내 주식" else "US"
+        with st.spinner("검색 중…"):
+            try:
+                quotes = yf.Search(query, max_results=8).quotes
+            except Exception:
+                quotes = []
+        results = []
+        for q in quotes:
+            tk   = q.get("symbol", "")
+            name = q.get("shortname") or q.get("longname") or tk
+            if q.get("quoteType") not in ("EQUITY", "ETF"):
+                continue
+            if mkt_filter == "KR" and not (tk.endswith(".KS") or tk.endswith(".KQ")):
+                continue
+            if mkt_filter == "US" and (tk.endswith(".KS") or tk.endswith(".KQ")):
+                continue
+            results.append({"name": name, "ticker": tk})
+        if results:
+            for r in results:
+                if st.button(f"{r['name']}  `{r['ticker']}`", key=f"srch_{r['ticker']}", use_container_width=True):
+                    ticker = r["ticker"]
+                    st.success(f"✅ {r['name']} `{r['ticker']}`")
+        else:
+            st.warning("검색 결과 없음")
+
+
 st.info(
     "⚠️ **투자 유의 안내** · 예측은 과거 데이터에 기반한 통계적 추정일 뿐 미래 주가를 보장하지 않습니다. "
     "교육·참고용이며 투자 권유가 아닙니다."
@@ -378,7 +334,6 @@ def render_ranking(rdf: pd.DataFrame, currency: str):
     top = rdf.iloc[0]
     st.metric(f"🥇 {top['종목']}", f"{top['예측 상승률(%)']:+.1f}%", f"현재가 {top['현재가']:,.{dec}f} {currency}")
 
-    # 상승 종목 실시간 텍스트 요약
     rising_stocks = rdf[rdf["예측 상승률(%)"] > 0]
     if not rising_stocks.empty:
         top_rising = rising_stocks.head(3)
@@ -412,8 +367,7 @@ with tab_rank:
     pred_r = rc2.select_slider("예측 기간", options=PRED_OPTIONS, value=3, format_func=fmt_pred, key="pred_rank")
     pred_bdays_r = int(pred_r * BDAYS_PER_MONTH)
     st.caption(f"학습 {fmt_learn(learn_r)} 데이터로 향후 {fmt_pred(pred_r)} 상승률을 추세 외삽으로 추정해 정렬합니다.")
-    
-    # 버튼 크기 자동 채우기 비활성화 (use_container_width=False 적용)
+
     if st.button("📊 상승 예측 실행", type="primary", use_container_width=False, key="rank_run"):
         col_kr, col_us = st.columns(2)
         with col_kr:
@@ -504,7 +458,7 @@ with tab_detail:
         fig.add_trace(go.Scatter(x=df["Date"], y=df["Close"], name="실제 종가", line=dict(color="#1f77b4", width=1.5)), row=1, col=1)
         fig.add_trace(go.Scatter(x=df["Date"], y=df["MA20"], name="MA20", line=dict(color="orange", width=1, dash="dot")), row=1, col=1)
         fig.add_trace(go.Scatter(x=lin_fut["ds"], y=lin_fut["yhat"], name="선형회귀", line=dict(color="#E24B4A", width=2)), row=1, col=1)
-        
+
         fig.add_trace(go.Scatter(
             x=pd.concat([lin_fut["ds"], lin_fut["ds"][::-1]]),
             y=pd.concat([lin_fut["yhat_upper"], lin_fut["yhat_lower"][::-1]]),
