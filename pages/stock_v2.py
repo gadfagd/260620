@@ -47,7 +47,87 @@ KR_STOCKS = {
     "에코프로": "086520.KQ",
     "알테오젠": "196170.KQ",
 }
+"""
+ticker_search.py
+────────────────
+야후 파이낸스 티커 검색 기능만 추출한 컴포넌트
+기존 stock_v2 앱의 티커 입력 부분에 붙여넣어 사용하세요.
+"""
 
+import yfinance as yf
+import streamlit as st
+
+
+def ticker_search_ui(market: str = "KR") -> str | None:
+    """
+    종목명으로 야후 파이낸스 티커를 검색합니다.
+
+    Parameters
+    ----------
+    market : "KR" (국내 .KS/.KQ) 또는 "US" (해외)
+
+    Returns
+    -------
+    ticker : 선택된 티커 문자열, 미선택 시 None
+    """
+    st.markdown("#### 🔍 종목 검색")
+    st.caption("종목명 또는 코드를 입력하세요. (예: 삼성전자, AAPL, 005930)")
+
+    query = st.text_input(
+        "종목 검색",
+        placeholder="종목명 또는 코드 입력…",
+        label_visibility="collapsed",
+    )
+
+    if not query.strip():
+        return st.session_state.get("searched_ticker")
+
+    # 검색 실행
+    with st.spinner("검색 중…"):
+        try:
+            quotes = yf.Search(query, max_results=8).quotes
+        except Exception:
+            st.error("검색 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.")
+            return st.session_state.get("searched_ticker")
+
+    # 시장 필터 + EQUITY/ETF만
+    results = []
+    for q in quotes:
+        ticker = q.get("symbol", "")
+        name   = q.get("shortname") or q.get("longname") or ticker
+        exch   = q.get("exchDisp") or q.get("exchange") or ""
+        qtype  = q.get("quoteType", "")
+
+        if qtype not in ("EQUITY", "ETF"):
+            continue
+        if market == "KR" and not (ticker.endswith(".KS") or ticker.endswith(".KQ")):
+            continue
+        if market == "US" and (ticker.endswith(".KS") or ticker.endswith(".KQ")):
+            continue
+
+        results.append({"name": name, "ticker": ticker, "exchange": exch})
+
+    # 결과 표시
+    if not results:
+        st.warning("검색 결과가 없습니다. 다른 키워드로 시도해 보세요.")
+        return st.session_state.get("searched_ticker")
+
+    st.caption(f"{len(results)}개 종목이 검색되었습니다. 선택하세요.")
+    for r in results:
+        label = f"{r['name']}  `{r['ticker']}`  _{r['exchange']}_"
+        if st.button(label, key=f"res_{r['ticker']}", use_container_width=True):
+            st.session_state["searched_ticker"]      = r["ticker"]
+            st.session_state["searched_ticker_name"] = r["name"]
+
+    # 선택 결과 반환
+    if "searched_ticker" in st.session_state:
+        name   = st.session_state.get("searched_ticker_name", "")
+        ticker = st.session_state["searched_ticker"]
+        st.success(f"✅ 선택됨: **{name}** `{ticker}`")
+        return ticker
+
+    return None
+    
 US_STOCKS = {
     "애플 (AAPL)": "AAPL",
     "마이크로소프트 (MSFT)": "MSFT",
